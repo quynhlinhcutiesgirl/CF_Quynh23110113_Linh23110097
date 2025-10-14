@@ -1,0 +1,60 @@
+from vnstock import Quote
+import pandas as pd
+import datetime
+import os
+
+# -----------------------------
+# 1. Cấu hình cổ phiếu
+# -----------------------------
+symbol = 'PLX'
+source = 'VCI'
+
+# -----------------------------
+# 2. Tạo đối tượng Quote
+# -----------------------------
+quote = Quote(symbol=symbol, source=source)
+
+# -----------------------------
+# 3. Lấy dữ liệu lịch sử
+# -----------------------------
+df = quote.history(start='2001-01-01', end='2025-10-12', interval='1D')
+
+# -----------------------------
+# 4. Kiểm tra DataFrame rỗng
+# -----------------------------
+if df.empty:
+    print(f" Dữ liệu cho mã {symbol} từ source {source} đang trống!")
+    exit()
+
+# -----------------------------
+# 5. Chuyển cột ngày sang datetime
+# -----------------------------
+date_col = 'datetime' if 'datetime' in df.columns else df.columns[0]
+df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+
+# -----------------------------
+# 6. Format ngày chuẩn Excel
+# -----------------------------
+# Chuyển sang chuỗi dạng 'YYYY-MM-DD' để Excel nhận dạng chắc chắn
+df[date_col] = df[date_col].dt.strftime('%Y-%m-%d')
+
+# -----------------------------
+# 7. Sắp xếp theo ngày tăng dần
+# -----------------------------
+df = df.sort_values(by=date_col).reset_index(drop=True)
+
+# -----------------------------
+# 8. Kiểm tra
+# -----------------------------
+print(f" Dữ liệu tải được {len(df)} dòng cho mã {symbol}")
+print(df.head())
+
+# -----------------------------
+# 9. Lưu ra Excel với timestamp
+# -----------------------------
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f'gia_lich_su_ohlcv_{symbol}_{timestamp}.xlsx'
+save_path = os.path.join(os.path.expanduser("~"), "Documents", filename)
+
+df.to_excel(save_path, index=False)
+print(f" Đã lưu dữ liệu ra file: {save_path}")
