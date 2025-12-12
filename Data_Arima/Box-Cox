@@ -1,0 +1,8 @@
+import plotly.express as px
+from scipy.stats import boxcox
+import pandas as pd
+
+data = pd.read_csv('/content/AMZN_Stock_Data.csv')
+data['Date'] = pd.to_datetime(data['Date'])
+data = data.set_index('Date')
+data['AdjClose_Boxcox'], lam = boxcox(data['Adj Close'])

@@ -1,0 +1,93 @@
+
+## Xử lý dữ liệu thiếu ( Điền trung bình bình 7 ngày)
+## Xác định dữ liệu bất thường (vd: Lỗi OHLC --> Xóa hàng)
+## Xác định Outliers Volume bằng 3IQR ( Thay thế outliers bằng các ngưỡng 3IQR 
+##(Nếu Q1-3IQR < 0 thì thay bằng min Data )
+## Tính logReturn 
+import pandas as pd
+import numpy as np
+from datetime import date
+import yfinance as yf
+
+def clean_financial_data(df: pd.DataFrame, ticker_symbol: str) -> pd.DataFrame:
+    if df.empty:
+        print("DataFrame rỗng, bỏ qua quá trình làm sạch.")
+        return pd.DataFrame()
+
+    df = df.copy()
+
+    price_cols = ['Open', 'High', 'Low','Close','Adj Close', 'Volume']
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    missing_cols = [col for col in price_cols if col not in df.columns]
+    if missing_cols:
+        print(f"Lỗi: Thiếu các cột bắt buộc: {missing_cols}")
+        return pd.DataFrame()
+
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+
+    mean_7_days = df[price_cols].rolling(window=7).mean().shift(1)
+    df[price_cols] = df[price_cols].fillna(mean_7_days)    
+    original_rows = len(df)
+    df.dropna(subset=['Adj Close'], inplace=True)
+    if original_rows > len(df):
+        print(f"Đã xóa {original_rows - len(df)} hàng vẫn còn NaN sau khi điền.")
+
+    original_rows = len(df)
+    df = df[df['Volume'] > 0]
+    removed_volume_rows = original_rows - len(df)
+
+    if removed_volume_rows > 0:
+        print(f"Đã xóa {removed_volume_rows} hàng có Volume <= 0.")
+
+    invalid_ohlc = df[
+        (df['Low'] > df['High']) |
+        (df['Close'] > df['High']) |
+        (df['Close'] < df['Low']) |
+        (df['Open'] < df['Low']) |
+        (df['Open'] > df['High'])
+    ]
+
+    if not invalid_ohlc.empty:
+        removed_ohlc_rows = len(invalid_ohlc)
+        df.drop(invalid_ohlc.index, inplace=True)
+        print(f" -> Đã xóa {removed_ohlc_rows} hàng bị lỗi OHLC.")
+
+    Q1_vol = df['Volume'].quantile(0.25)
+    Q3_vol = df['Volume'].quantile(0.75)
+    IQR_vol = Q3_vol - Q1_vol
+    upper_bound_vol = Q3_vol + 3.0 * IQR_vol
+    count_replaced_vol = len(df[df['Volume'] >= upper_bound_vol])
+    df['Volume'] = np.where(df['Volume'] >= upper_bound_vol, upper_bound_vol, df['Volume'])
+
+    if count_replaced_vol > 0:
+        print(f" -> Đã thay thế {count_replaced_vol} hàng có Volume quá lớn (> 3x IQR) bằng ngưỡng trên.")
+
+    df['Log_Return'] = np.log(df['Adj Close'] / df['Adj Close'].shift(1))
+    df.dropna(subset=['Log_Return'], inplace=True) 
+
+    Q1_log_ret = df['Log_Return'].quantile(0.25)
+    Q3_log_ret = df['Log_Return'].quantile(0.75)
+    IQR_log_ret = Q3_log_ret - Q1_log_ret
+    lower_bound_log_ret = Q1_log_ret - 3.0 * IQR_log_ret
+    upper_bound_log_ret = Q3_log_ret + 3.0 * IQR_log_ret
+
+    original_rows_log_ret = len(df)
+
+    df = df[(df['Log_Return'] > lower_bound_log_ret) & (df['Log_Return'] < upper_bound_log_ret)]
+
+    removed_log_ret_outlier_rows = original_rows_log_ret - len(df)
+    if removed_log_ret_outlier_rows > 0:
+        print(f" -> Đã xóa {removed_log_ret_outlier_rows} hàng có Log Return ngoại lai (> 3x IQR).")
+    df['Daily_Return'] = df['Adj Close'].pct_change()
+    df.dropna(subset=['Daily_Return'], inplace=True)
+    
+    print("\n" + "="*50)
+    print(f"QUÁ TRÌNH LÀM SẠCH HOÀN TẤT CHO {ticker_symbol}.")
+    print(f"Số hàng dữ liệu cuối cùng: {len(df)}")
+    print("="*50)
+
+    return df
+

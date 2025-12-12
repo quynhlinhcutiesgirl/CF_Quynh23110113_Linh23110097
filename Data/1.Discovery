@@ -92,7 +92,7 @@ if __name__ == '__main__':
     else:
         print("Không tìm thấy cổ phiếu nào phù hợp với các tiêu chí sàng lọc đã đặt.")
 
-
+#------KẾT QUẢ---------
 # * market_cap_lower: 500,000,000
 # * price_lower: 150
 # * price_higher: 8,000

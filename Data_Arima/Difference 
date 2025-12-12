@@ -1,0 +1,18 @@
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
+import pandas as pd
+
+
+data = pd.read_csv('/content/AMZN_Stock_Data.csv')
+
+# Difference the data
+data["Close_diff"] = data["Close_Boxcox"].diff()
+data.dropna(inplace=True)
+
+# Plot acf and pacf
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16,5), dpi=80)
+plot_acf(data['Close_diff'])
+plot_pacf(data['Close_diff'], method='ywm')
+ax1.tick_params(axis='both', labelsize=12)
+ax2.tick_params(axis='both', labelsize=12)
+plt.show()
